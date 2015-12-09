@@ -89,11 +89,17 @@ func NewConn() (*Conn, error) {
 //	NewConn("hostname:2.1") -> net.Dial("tcp", "", "hostname:6002")
 //	NewConn("tcp/hostname:1.0") -> net.Dial("tcp", "", "hostname:6001")
 func NewConnDisplay(display string) (*Conn, error) {
+	return NewConnDisplayAuth(display, "", nil)
+}
+
+// NewConnDisplayAuth is just like NewConnDisplay, but allows a specific
+// authorization token to be used.
+func NewConnDisplayAuth(display string, authName string, authData []byte) (*Conn, error) {
 	conn := &Conn{}
 
-	// First connect. This reads authority, checks DISPLAY environment
-	// variable, and loads the initial Setup info.
-	err := conn.connect(display)
+	// First connect. This reads authority (if authData is nil), checks DISPLAY
+	// environment variable, and loads the initial Setup info.
+	err := conn.connect(display, authName, authData)
 	if err != nil {
 		return nil, err
 	}
@@ -101,14 +107,20 @@ func NewConnDisplay(display string) (*Conn, error) {
 	return postNewConn(conn)
 }
 
-// NewConnDisplay is just like NewConn, but allows a specific net.Conn
+// NewConnNet is just like NewConn, but allows a specific net.Conn
 // to be used.
 func NewConnNet(netConn net.Conn) (*Conn, error) {
+	return NewConnNetAuth(netConn, "", nil)
+}
+
+// NewConnNetAuth is just like NewConnNet, but allows a specific
+// authorization token to be used.
+func NewConnNetAuth(netConn net.Conn, authName string, authData []byte) (*Conn, error) {
 	conn := &Conn{}
 
 	// First connect. This reads authority, checks DISPLAY environment
 	// variable, and loads the initial Setup info.
-	err := conn.connectNet(netConn)
+	err := conn.connectNet(netConn, authName, authData)
 
 	if err != nil {
 		return nil, err

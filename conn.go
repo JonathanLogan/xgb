@@ -23,37 +23,40 @@ import (
 // Note that you should read and understand the "Connection Setup" of the
 // X Protocol Reference Manual before changing this function:
 // http://goo.gl/4zGQg
-func (c *Conn) connect(display string) error {
+func (c *Conn) connect(display, authName string, authData []byte) error {
 	err := c.dial(display)
 	if err != nil {
 		return err
 	}
 
-	return c.postConnect()
+	return c.postConnect(authName, authData)
 }
 
 // connect init from to the net.Conn,
-func (c *Conn) connectNet(netConn net.Conn) error {
+func (c *Conn) connectNet(netConn net.Conn, authName string, authData []byte) error {
 	c.conn = netConn
-	return c.postConnect()
+	return c.postConnect(authName, authData)
 }
 
 // do the postConnect action after Conn get it's underly net.Conn
-func (c *Conn) postConnect() error {
-	// Get authentication data
-	authName, authData, err := readAuthority(c.host, c.display)
-	noauth := false
-	if err != nil {
-		Logger.Printf("Could not get authority info: %v", err)
-		Logger.Println("Trying connection without authority info...")
-		authName = ""
-		authData = []byte{}
-		noauth = true
-	}
+func (c *Conn) postConnect(authName string, authData []byte) error {
+	if authData == nil {
+		// Get authentication data
+		var err error
+		authName, authData, err = readAuthority(c.host, c.display)
+		noauth := false
+		if err != nil {
+			Logger.Printf("Could not get authority info: %v", err)
+			Logger.Println("Trying connection without authority info...")
+			authName = ""
+			authData = []byte{}
+			noauth = true
+		}
 
-	// Assume that the authentication protocol is "MIT-MAGIC-COOKIE-1".
-	if !noauth && (authName != "MIT-MAGIC-COOKIE-1" || len(authData) != 16) {
-		return errors.New("unsupported auth protocol " + authName)
+		// Assume that the authentication protocol is "MIT-MAGIC-COOKIE-1".
+		if !noauth && (authName != "MIT-MAGIC-COOKIE-1" || len(authData) != 16) {
+			return errors.New("unsupported auth protocol " + authName)
+		}
 	}
 
 	buf := make([]byte, 12+Pad(len(authName))+Pad(len(authData)))
@@ -66,12 +69,12 @@ func (c *Conn) postConnect() error {
 	Put16(buf[10:], 0)
 	copy(buf[12:], []byte(authName))
 	copy(buf[12+Pad(len(authName)):], authData)
-	if _, err = c.conn.Write(buf); err != nil {
+	if _, err := c.conn.Write(buf); err != nil {
 		return err
 	}
 
 	head := make([]byte, 8)
-	if _, err = io.ReadFull(c.conn, head[0:8]); err != nil {
+	if _, err := io.ReadFull(c.conn, head[0:8]); err != nil {
 		return err
 	}
 	code := head[0]
@@ -86,7 +89,7 @@ func (c *Conn) postConnect() error {
 
 	buf = make([]byte, int(dataLen)*4+8, int(dataLen)*4+8)
 	copy(buf, head)
-	if _, err = io.ReadFull(c.conn, buf[8:]); err != nil {
+	if _, err := io.ReadFull(c.conn, buf[8:]); err != nil {
 		return err
 	}
 
