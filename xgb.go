@@ -418,6 +418,23 @@ func (c *Conn) readResponses() {
 			continue
 		}
 		switch buf[0] {
+		case 1, 35: // Reply or GenericEvent
+			// check to see if this reply has more bytes to be read
+			size := Get32(buf[4:])
+			if size > 0 {
+				byteCount := 32 + size*4
+				biggerBuf := make([]byte, byteCount)
+				copy(biggerBuf[:32], buf)
+				if _, err := io.ReadFull(c.conn, biggerBuf[32:]); err != nil {
+					Logger.Printf("A read error is unrecoverable: %s", err)
+					c.eventChan <- err
+					c.Close()
+					continue
+				}
+				buf = biggerBuf
+			}
+		}
+		switch buf[0] {
 		case 0: // This is an error
 			// Use the constructor function for this error (that is auto
 			// generated) by looking it up by the error number.
@@ -435,22 +452,7 @@ func (c *Conn) readResponses() {
 		case 1: // This is a reply
 			seq = Get16(buf[2:])
 
-			// check to see if this reply has more bytes to be read
-			size := Get32(buf[4:])
-			if size > 0 {
-				byteCount := 32 + size*4
-				biggerBuf := make([]byte, byteCount)
-				copy(biggerBuf[:32], buf)
-				if _, err := io.ReadFull(c.conn, biggerBuf[32:]); err != nil {
-					Logger.Printf("A read error is unrecoverable: %s", err)
-					c.eventChan <- err
-					c.Close()
-					continue
-				}
-				replyBytes = biggerBuf
-			} else {
-				replyBytes = buf
-			}
+			replyBytes = buf
 
 			// This reply is sent to its corresponding cookie below.
 		default: // This is an event
